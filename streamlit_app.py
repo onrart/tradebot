@@ -65,19 +65,19 @@ def sidebar_controls() -> BotConfig:
 def control_buttons(cfg: BotConfig) -> None:
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        if st.button("Start", use_container_width=True):
+        if st.button("Start", width="stretch"):
             st.session_state["bot"] = BotService(cfg)
             st.session_state["running"] = True
             st.session_state["last_decision_ts"] = 0.0
     with c2:
-        if st.button("Stop", use_container_width=True):
+        if st.button("Stop", width="stretch"):
             st.session_state["running"] = False
     with c3:
-        if st.button("Run Once", use_container_width=True):
+        if st.button("Run Once", width="stretch"):
             st.session_state["last_snapshot"] = st.session_state["bot"].run_once()
             st.session_state["last_decision_ts"] = time.time()
     with c4:
-        if st.button("Close All Positions", use_container_width=True):
+        if st.button("Close All Positions", width="stretch"):
             st.session_state["close_all_confirm"] = True
 
     if st.session_state.get("close_all_confirm"):
@@ -90,14 +90,13 @@ def control_buttons(cfg: BotConfig) -> None:
 def tick_runtime() -> None:
     bot: BotService = st.session_state["bot"]
     cfg: BotConfig = st.session_state["cfg"]
-    if st.session_state["running"]:
-        now = time.time()
-        if now - st.session_state["last_decision_ts"] >= cfg.decision_interval_seconds:
-            st.session_state["last_snapshot"] = bot.run_once()
-            st.session_state["last_decision_ts"] = now
-        else:
-            st.session_state["last_snapshot"] = bot.refresh_only()
-    elif st.session_state["last_snapshot"] is None:
+    now = time.time()
+
+    if st.session_state["running"] and now - st.session_state["last_decision_ts"] >= cfg.decision_interval_seconds:
+        st.session_state["last_snapshot"] = bot.run_once()
+        st.session_state["last_decision_ts"] = now
+    else:
+        # Decision zamanı gelmese bile UI tarafında balance/position/pnl canlı yenilensin.
         st.session_state["last_snapshot"] = bot.refresh_only()
 
 
@@ -111,11 +110,11 @@ def render_panels(snapshot: dict) -> None:
     e.metric("Realized PnL(Session)", f"{cards['realized_pnl']:.2f}")
 
     st.subheader("Open Positions")
-    st.dataframe(snapshot["positions"], use_container_width=True)
+    st.dataframe(snapshot["positions"], width="stretch")
     st.subheader("Last Decision")
     st.json(snapshot["last_decision"])
     st.subheader("Recent Orders")
-    st.dataframe(snapshot["recent_orders"], use_container_width=True)
+    st.dataframe(snapshot["recent_orders"], width="stretch")
     st.subheader("Order Result")
     st.json(snapshot["order_result"])
     st.subheader("Recent Logs")
@@ -132,6 +131,8 @@ def main() -> None:
 
     if st_autorefresh:
         st_autorefresh(interval=cfg.ui_refresh_interval_seconds * 1000, key="ui_refresh")
+    else:
+        st.info("Auto refresh eklentisi yok; canlı güncelleme için streamlit-autorefresh paketini kurun.")
 
     st.caption(
         f"Python {cfg.python_version} | Mode={cfg.bot_mode} | Market={cfg.market_type} | LiveEnabled={cfg.live_trading_enabled} | API={sanitize_secret(cfg.binance_api_key)}"

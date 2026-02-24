@@ -28,6 +28,7 @@ class BotService:
         self.decider = create_decider(cfg)
         self.emergency_stop = cfg.emergency_stop
         self.last_decision = DEFAULT_DECISION.copy()
+        self.last_price: float = 0.0
 
     def set_emergency_stop(self, enabled: bool) -> None:
         self.emergency_stop = enabled
@@ -42,6 +43,7 @@ class BotService:
             self.logger.info("tick.data_fetched", extra={"extra_data": {"symbol": self.cfg.default_symbol, "rows": len(c1)}})
             indicators = compute_indicator_snapshot(c1)
             latest_price = float(c1.iloc[-1]["close"])
+            self.last_price = latest_price
             positions = []
             if self.wallet.base_qty > 0:
                 positions.append(self.portfolio.build_position(self.cfg.default_symbol, self.wallet.base_qty, self.wallet.entry_price, latest_price))
@@ -95,7 +97,7 @@ class BotService:
         try:
             price = self.exchange.get_latest_price(self.cfg.default_symbol)
         except Exception:
-            price = self.wallet.entry_price
+            price = self.last_price if self.last_price > 0 else self.wallet.entry_price
         positions = []
         if self.wallet.base_qty > 0:
             positions.append(self.portfolio.build_position(self.cfg.default_symbol, self.wallet.base_qty, self.wallet.entry_price, price))
