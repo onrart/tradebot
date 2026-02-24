@@ -31,6 +31,8 @@ class BotConfig:
 
     binance_api_key: str | None = None
     binance_api_secret: str | None = None
+    binance_test_api_key: str | None = None
+    binance_test_api_secret: str | None = None
 
     max_positions: int = 3
     max_position_size_pct: float = 20.0
@@ -81,6 +83,8 @@ def load_config(env_path: str | Path = ".env") -> BotConfig:
         ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         binance_api_key=os.getenv("BINANCE_API_KEY"),
         binance_api_secret=os.getenv("BINANCE_API_SECRET"),
+        binance_test_api_key=os.getenv("BINANCE_TEST_API_KEY"),
+        binance_test_api_secret=os.getenv("BINANCE_TEST_API_SECRET"),
         max_positions=int(os.getenv("MAX_POSITIONS", "3")),
         max_position_size_pct=float(os.getenv("MAX_POSITION_SIZE_PCT", "20")),
         max_daily_loss_usdt=float(os.getenv("MAX_DAILY_LOSS_USDT", "5")),

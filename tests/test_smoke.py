@@ -69,30 +69,6 @@ def test_portfolio_normalization():
     assert cards["equity"] >= cards["wallet_balance"]
 
 
-def test_duplicate_guard_time_window(tmp_path: Path):
-    from tradebot.config.settings import BotConfig
-    from tradebot.execution.service import ExecutionService
-    from tradebot.exchange.binance_client import BinanceClient
-    from tradebot.history.store import InMemoryHistory
-
-    cfg = BotConfig()
-    wallet = PaperWallet(wallet_balance=1000, available_balance=1000)
-    history = InMemoryHistory(state_file=str(tmp_path / 'state.json'))
-
-    class DummyExchange(BinanceClient):
-        def __init__(self):
-            pass
-        def get_symbol_rules(self, symbol: str) -> dict:
-            return {"step_size": 0.001, "min_qty": 0.001, "min_notional": 1, "tick_size": 0.0001}
-
-    svc = ExecutionService(cfg, history, wallet, DummyExchange())
-    d = {"action": "buy", "position_size_pct": 10.0}
-    r1 = svc.execute("DOGEUSDT", 0.1, d)
-    r2 = svc.execute("DOGEUSDT", 0.1, d)
-    assert r1["status"] in {"filled", "simulated"}
-    assert r2["status"] == "blocked"
-
-
 def test_risk_no_pyramiding_blocks_second_buy():
     from tradebot.risk.manager import RiskManager
     cfg = load_config('.env.example')
@@ -121,3 +97,84 @@ def test_demo_mode_without_keys_blocks_order(tmp_path: Path):
     out = svc.execute('DOGEUSDT', 0.1, {"action":"buy", "position_size_pct":10.0})
     assert out['status'] == 'blocked'
     assert 'API key/secret' in out['details']
+
+
+def test_risk_close_not_blocked_by_max_position_size():
+    from tradebot.risk.manager import RiskManager
+
+    cfg = load_config('.env.example')
+    cfg.max_position_size_pct = 20
+    risk = RiskManager(cfg)
+    ok, reason = risk.validate('DOGEUSDT', {"action": "close", "position_size_pct": 100.0}, 100.0, open_positions=1, session_realized_pnl=0.0)
+    assert ok is True
+    assert reason == 'ok'
+
+
+def test_execution_handles_exchange_exception(tmp_path: Path):
+    from tradebot.config.settings import BotConfig
+    from tradebot.execution.service import ExecutionService
+    from tradebot.exchange.binance_client import BinanceClient
+    from tradebot.history.store import InMemoryHistory
+
+    class BrokenExchange(BinanceClient):
+        def __init__(self):
+            pass
+        def get_symbol_rules(self, symbol: str) -> dict:
+            return {"step_size": 0.001, "min_qty": 0.001, "min_notional": 1, "tick_size": 0.0001}
+        def get_account_balances(self, api_key: str, api_secret: str) -> dict[str, float]:
+            raise RuntimeError('network fail')
+
+    cfg = BotConfig(bot_mode='demo', market_type='spot', binance_api_key='x', binance_api_secret='y')
+    wallet = PaperWallet(wallet_balance=1000, available_balance=1000)
+    svc = ExecutionService(cfg, InMemoryHistory(state_file=str(tmp_path / 'x.json')), wallet, BrokenExchange())
+    out = svc.execute('DOGEUSDT', 0.1, {"action": "buy", "position_size_pct": 10.0})
+    assert out['status'] == 'error'
+    assert 'exchange execution failed' in out['details']
+
+
+def test_testnet_credentials_priority():
+    from tradebot.config.settings import BotConfig
+    from tradebot.execution.service import ExecutionService
+    from tradebot.exchange.binance_client import BinanceClient
+    from tradebot.history.store import InMemoryHistory
+
+    class DummyExchange(BinanceClient):
+        def __init__(self):
+            pass
+
+    cfg = BotConfig(
+        bot_mode='demo',
+        binance_testnet=True,
+        binance_api_key='main_key',
+        binance_api_secret='main_secret',
+        binance_test_api_key='test_key',
+        binance_test_api_secret='test_secret',
+    )
+    svc = ExecutionService(cfg, InMemoryHistory(state_file=':memory:'), PaperWallet(1000, 1000), DummyExchange())
+    k, sct = svc._active_api_credentials()
+    assert k == 'test_key'
+    assert sct == 'test_secret'
+
+
+def test_mainnet_credentials_when_testnet_false():
+    from tradebot.config.settings import BotConfig
+    from tradebot.execution.service import ExecutionService
+    from tradebot.exchange.binance_client import BinanceClient
+    from tradebot.history.store import InMemoryHistory
+
+    class DummyExchange(BinanceClient):
+        def __init__(self):
+            pass
+
+    cfg = BotConfig(
+        bot_mode='demo',
+        binance_testnet=False,
+        binance_api_key='main_key',
+        binance_api_secret='main_secret',
+        binance_test_api_key='test_key',
+        binance_test_api_secret='test_secret',
+    )
+    svc = ExecutionService(cfg, InMemoryHistory(state_file=':memory:'), PaperWallet(1000, 1000), DummyExchange())
+    k, sct = svc._active_api_credentials()
+    assert k == 'main_key'
+    assert sct == 'main_secret'

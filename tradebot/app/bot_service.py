@@ -93,13 +93,20 @@ class BotService:
             self.portfolio.session_realized_pnl += float(result["realized_pnl"])
         return self._snapshot(order_result=result, error=None)
 
+
+    def _active_api_credentials(self) -> tuple[str | None, str | None]:
+        if self.cfg.binance_testnet:
+            return self.cfg.binance_test_api_key or self.cfg.binance_api_key, self.cfg.binance_test_api_secret or self.cfg.binance_api_secret
+        return self.cfg.binance_api_key, self.cfg.binance_api_secret
+
     def _sync_external_balances(self) -> tuple[float, float] | None:
         if self.cfg.bot_mode == "paper":
             return None
-        if not self.cfg.binance_api_key or not self.cfg.binance_api_secret:
+        api_key, api_secret = self._active_api_credentials()
+        if not api_key or not api_secret:
             return None
         try:
-            bal = self.exchange.get_account_balances(self.cfg.binance_api_key, self.cfg.binance_api_secret)
+            bal = self.exchange.get_account_balances(api_key, api_secret)
             return bal["wallet_balance"], bal["available_balance"]
         except Exception:
             return None

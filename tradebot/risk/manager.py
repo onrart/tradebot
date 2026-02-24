@@ -16,14 +16,14 @@ class RiskManager:
                 return False, "max_positions limit"
             if open_positions > 0 and not self.cfg.allow_pyramiding:
                 return False, "position already open (pyramiding off)"
-        if decision.get("position_size_pct", 0.0) > self.cfg.max_position_size_pct:
+        if decision["action"] in {"buy", "sell"} and decision.get("position_size_pct", 0.0) > self.cfg.max_position_size_pct:
             return False, "max_position_size_pct limit"
         if -session_realized_pnl >= self.cfg.max_daily_loss_usdt:
             return False, "max_daily_loss_usdt reached"
         if decision["action"] == "buy" and available_balance <= 0:
             return False, "insufficient available balance"
         now = time.time()
-        if now - self.last_trade_ts.get(symbol, 0) < self.cfg.cooldown_seconds:
+        if decision["action"] == "buy" and now - self.last_trade_ts.get(symbol, 0) < self.cfg.cooldown_seconds:
             return False, "cooldown active"
         return True, "ok"
 

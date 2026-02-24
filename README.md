@@ -35,6 +35,12 @@ cp .env.example .env
 streamlit run streamlit_app.py
 ```
 
+
+### Binance API profili (testnet/live)
+- `BINANCE_TESTNET=true` ise bot önce `BINANCE_TEST_API_KEY/SECRET` değerlerini kullanır.
+- Testnet key boşsa geriye dönük uyumluluk için `BINANCE_API_KEY/SECRET` fallback yapılır.
+- `BINANCE_TESTNET=false` ise doğrudan `BINANCE_API_KEY/SECRET` kullanılır.
+
 ## Güvenlik
 - Secret değerler loglanmaz (maskelenir).
 - Live guard açık değilse live emirleri bloklanır.

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-import time
 
 from tradebot.config.settings import BotConfig
 from tradebot.exchange.binance_client import BinanceClient
@@ -15,11 +14,15 @@ class ExecutionService:
         self.history = history
         self.wallet = wallet
         self.exchange_client = exchange_client
-        self.last_order_ts: dict[tuple[str, str], float] = {}
 
     @staticmethod
     def _round_step(qty: float, step: float) -> float:
         return math.floor(qty / step) * step if step > 0 else qty
+
+    def _active_api_credentials(self) -> tuple[str | None, str | None]:
+        if self.cfg.binance_testnet:
+            return self.cfg.binance_test_api_key or self.cfg.binance_api_key, self.cfg.binance_test_api_secret or self.cfg.binance_api_secret
+        return self.cfg.binance_api_key, self.cfg.binance_api_secret
 
     def execute(self, symbol: str, price: float, decision: dict, emergency_stop: bool = False) -> dict:
         action = decision["action"]
@@ -28,12 +31,6 @@ class ExecutionService:
             return {"status": "hold", "details": "No action"}
         if emergency_stop and action in {"buy", "sell"}:
             return {"status": "blocked", "details": "Emergency stop active"}
-        if action in {"buy", "sell"}:
-            key = (symbol, action)
-            now = time.time()
-            prev_ts = self.last_order_ts.get(key, 0.0)
-            if now - prev_ts < 2.0:
-                return {"status": "blocked", "details": "duplicate order guard (2s)"}
         if self.cfg.bot_mode == "live" and not self.cfg.live_trading_enabled:
             return {"status": "blocked", "details": "Live guard"}
 
@@ -41,9 +38,10 @@ class ExecutionService:
         if self.cfg.bot_mode == "paper":
             result = self._execute_paper(symbol, action, price, size_pct, rules)
         else:
-            result = self._execute_exchange(symbol, action, price, size_pct, rules)
-        if result["status"] in {"filled", "simulated"} and action in {"buy", "sell"}:
-            self.last_order_ts[(symbol, action)] = time.time()
+            try:
+                result = self._execute_exchange(symbol, action, price, size_pct, rules)
+            except Exception as exc:
+                return {"status": "error", "details": f"exchange execution failed: {exc}"}
         return result
 
     def _execute_paper(self, symbol: str, action: str, price: float, size_pct: float, rules: dict) -> dict:
@@ -68,13 +66,14 @@ class ExecutionService:
         return {"status": "hold", "details": "unsupported"}
 
     def _execute_exchange(self, symbol: str, action: str, price: float, size_pct: float, rules: dict) -> dict:
-        if not self.cfg.binance_api_key or not self.cfg.binance_api_secret:
-            return {"status": "blocked", "details": "API key/secret missing for demo/live"}
+        api_key, api_secret = self._active_api_credentials()
+        if not api_key or not api_secret:
+            return {"status": "blocked", "details": "API key/secret missing for selected testnet/live profile"}
 
         if self.cfg.market_type != "spot":
             return {"status": "blocked", "details": "Futures demo/live order integration TODO"}
 
-        balances = self.exchange_client.get_account_balances(self.cfg.binance_api_key, self.cfg.binance_api_secret)
+        balances = self.exchange_client.get_account_balances(api_key, api_secret)
         if action == "buy":
             quote_amount = balances["available_balance"] * size_pct
             if quote_amount < rules["min_notional"]:
@@ -82,7 +81,7 @@ class ExecutionService:
             qty = self._round_step(quote_amount / price, rules["step_size"])
             if qty < rules["min_qty"]:
                 return {"status": "rejected", "details": "min_qty"}
-            result = self.exchange_client.place_market_order(self.cfg.binance_api_key, self.cfg.binance_api_secret, symbol, "BUY", qty)
+            result = self.exchange_client.place_market_order(api_key, api_secret, symbol, "BUY", qty)
             self.history.add_order(symbol, "BUY", result.get("qty", qty), price, self.cfg.bot_mode, "FILLED")
             return result
 
