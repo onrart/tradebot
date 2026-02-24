@@ -38,7 +38,10 @@ class ExecutionService:
             return {"status": "blocked", "details": "Live guard"}
 
         rules = self.exchange_client.get_symbol_rules(symbol)
-        result = self._execute_paper(symbol, action, price, size_pct, rules)
+        if self.cfg.bot_mode == "paper":
+            result = self._execute_paper(symbol, action, price, size_pct, rules)
+        else:
+            result = self._execute_exchange(symbol, action, price, size_pct, rules)
         if result["status"] in {"filled", "simulated"} and action in {"buy", "sell"}:
             self.last_order_ts[(symbol, action)] = time.time()
         return result
@@ -64,7 +67,33 @@ class ExecutionService:
 
         return {"status": "hold", "details": "unsupported"}
 
+    def _execute_exchange(self, symbol: str, action: str, price: float, size_pct: float, rules: dict) -> dict:
+        if not self.cfg.binance_api_key or not self.cfg.binance_api_secret:
+            return {"status": "blocked", "details": "API key/secret missing for demo/live"}
+
+        if self.cfg.market_type != "spot":
+            return {"status": "blocked", "details": "Futures demo/live order integration TODO"}
+
+        balances = self.exchange_client.get_account_balances(self.cfg.binance_api_key, self.cfg.binance_api_secret)
+        if action == "buy":
+            quote_amount = balances["available_balance"] * size_pct
+            if quote_amount < rules["min_notional"]:
+                return {"status": "rejected", "details": "min_notional"}
+            qty = self._round_step(quote_amount / price, rules["step_size"])
+            if qty < rules["min_qty"]:
+                return {"status": "rejected", "details": "min_qty"}
+            result = self.exchange_client.place_market_order(self.cfg.binance_api_key, self.cfg.binance_api_secret, symbol, "BUY", qty)
+            self.history.add_order(symbol, "BUY", result.get("qty", qty), price, self.cfg.bot_mode, "FILLED")
+            return result
+
+        if action in {"sell", "close"}:
+            return {"status": "blocked", "details": "Demo/live SELL requires base balance sync TODO"}
+
+        return {"status": "hold", "details": "unsupported"}
+
     def close_all(self, symbol: str, price: float) -> dict:
-        if self.wallet.base_qty <= 0:
-            return {"status": "noop", "details": "No open position"}
-        return self._execute_paper(symbol, "close", price, 1.0, self.exchange_client.get_symbol_rules(symbol))
+        if self.cfg.bot_mode == "paper":
+            if self.wallet.base_qty <= 0:
+                return {"status": "noop", "details": "No open position"}
+            return self._execute_paper(symbol, "close", price, 1.0, self.exchange_client.get_symbol_rules(symbol))
+        return {"status": "blocked", "details": "Close all for demo/live not implemented safely"}

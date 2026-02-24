@@ -91,3 +91,33 @@ def test_duplicate_guard_time_window(tmp_path: Path):
     r2 = svc.execute("DOGEUSDT", 0.1, d)
     assert r1["status"] in {"filled", "simulated"}
     assert r2["status"] == "blocked"
+
+
+def test_risk_no_pyramiding_blocks_second_buy():
+    from tradebot.risk.manager import RiskManager
+    cfg = load_config('.env.example')
+    cfg.allow_pyramiding = False
+    risk = RiskManager(cfg)
+    ok, reason = risk.validate('DOGEUSDT', {"action": "buy", "position_size_pct": 10.0}, 100.0, open_positions=1, session_realized_pnl=0.0)
+    assert ok is False
+    assert 'pyramiding' in reason
+
+
+def test_demo_mode_without_keys_blocks_order(tmp_path: Path):
+    from tradebot.config.settings import BotConfig
+    from tradebot.execution.service import ExecutionService
+    from tradebot.exchange.binance_client import BinanceClient
+    from tradebot.history.store import InMemoryHistory
+
+    class DummyExchange(BinanceClient):
+        def __init__(self):
+            pass
+        def get_symbol_rules(self, symbol: str) -> dict:
+            return {"step_size": 0.001, "min_qty": 0.001, "min_notional": 1, "tick_size": 0.0001}
+
+    cfg = BotConfig(bot_mode='demo', market_type='spot')
+    wallet = PaperWallet(wallet_balance=1000, available_balance=1000)
+    svc = ExecutionService(cfg, InMemoryHistory(state_file=str(tmp_path / 's.json')), wallet, DummyExchange())
+    out = svc.execute('DOGEUSDT', 0.1, {"action":"buy", "position_size_pct":10.0})
+    assert out['status'] == 'blocked'
+    assert 'API key/secret' in out['details']

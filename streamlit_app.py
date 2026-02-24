@@ -104,11 +104,12 @@ def render_panels(snapshot: dict) -> None:
     cards = snapshot["account_cards"]
     a, b, c, d, e = st.columns(5)
     a.metric("Wallet Balance", f"{cards['wallet_balance']:.2f}")
-    b.metric("Available", f"{cards['available_balance']:.2f}")
+    b.metric("Available Balance", f"{cards['available_balance']:.2f}")
     c.metric("Equity", f"{cards['equity']:.2f}")
     d.metric("Unrealized PnL", f"{cards['unrealized_pnl']:.2f}")
     e.metric("Realized PnL(Session)", f"{cards['realized_pnl']:.2f}")
 
+    st.caption("Not: Paper modda bakiye/pozisyon simülasyon verisidir. Demo/Live modda spot için USDT bakiyesi test hesaptan senkronlanır.")
     st.subheader("Open Positions")
     st.dataframe(snapshot["positions"], width="stretch")
     st.subheader("Last Decision")
@@ -139,6 +140,8 @@ def main() -> None:
     )
     if cfg.bot_mode == "live" and not cfg.live_trading_enabled:
         st.warning("Live mode seçili fakat LIVE_TRADING_ENABLED=false. Emirler engellenecek.")
+    if cfg.bot_mode in {"demo", "live"} and cfg.market_type == "futures":
+        st.warning("Futures demo/live order entegrasyonu bu MVP'de tamamlanmadı. Spot testnet kullanın.")
 
     tick_runtime()
     render_panels(st.session_state["last_snapshot"])

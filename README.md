@@ -5,9 +5,12 @@ Modüler, güvenli ve hata toleranslı bir trade bot MVP'si.
 ## Temel Özellikler
 - Varsayılan mod: `paper`.
 - `demo/testnet` destekli, `live` sadece `LIVE_TRADING_ENABLED=true` ise aktif.
+- Varsayılan `MARKET_TYPE=spot` (testnet order görünürlüğü için).
 - Decision interval default **10s** (`DECISION_INTERVAL_SECONDS`) ve UI override.
 - UI refresh interval decision'dan bağımsız (`UI_REFRESH_INTERVAL_SECONDS`, default 2s).
 - LLM decider adapterları: RuleBased / OpenAI / Gemini / Ollama.
+- Demo/Live modda spot testnet için gerçek emir entegrasyonu vardır (API key/secret gerekir).
+- Futures demo/live order akışı TODO olarak işaretlidir.
 - Canlı izleme paneli: bakiye kartları, açık pozisyonlar, unrealized/realized PnL, son karar, emir geçmişi, log.
 
 ## Mimari

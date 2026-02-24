@@ -11,8 +11,11 @@ class RiskManager:
         self.last_trade_ts: dict[str, float] = {}
 
     def validate(self, symbol: str, decision: dict, available_balance: float, open_positions: int, session_realized_pnl: float) -> tuple[bool, str]:
-        if decision["action"] == "buy" and open_positions >= self.cfg.max_positions:
-            return False, "max_positions limit"
+        if decision["action"] == "buy":
+            if open_positions >= self.cfg.max_positions:
+                return False, "max_positions limit"
+            if open_positions > 0 and not self.cfg.allow_pyramiding:
+                return False, "position already open (pyramiding off)"
         if decision.get("position_size_pct", 0.0) > self.cfg.max_position_size_pct:
             return False, "max_position_size_pct limit"
         if -session_realized_pnl >= self.cfg.max_daily_loss_usdt:

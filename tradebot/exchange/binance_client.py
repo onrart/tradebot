@@ -6,6 +6,7 @@ import requests
 class BinanceClient:
     def __init__(self, market_type: str = "spot", testnet: bool = True) -> None:
         self.market_type = market_type
+        self.testnet = testnet
         if market_type == "futures":
             self.base_url = "https://testnet.binancefuture.com" if testnet else "https://fapi.binance.com"
         else:
@@ -35,7 +36,36 @@ class BinanceClient:
         }
 
     def get_latest_price(self, symbol: str) -> float:
-        endpoint = "ticker/price"
-        resp = requests.get(self._path(endpoint), params={"symbol": symbol}, timeout=15)
+        resp = requests.get(self._path("ticker/price"), params={"symbol": symbol}, timeout=15)
         resp.raise_for_status()
         return float(resp.json()["price"])
+
+    def get_account_balances(self, api_key: str, api_secret: str) -> dict[str, float]:
+        if self.market_type != "spot":
+            raise NotImplementedError("Futures account sync TODO")
+        from binance.client import Client
+
+        client = Client(api_key, api_secret, testnet=self.testnet)
+        data = client.get_account()
+        by_asset = {b["asset"]: b for b in data.get("balances", [])}
+        usdt = by_asset.get("USDT", {"free": "0", "locked": "0"})
+        free = float(usdt.get("free", 0))
+        locked = float(usdt.get("locked", 0))
+        return {
+            "wallet_balance": free + locked,
+            "available_balance": free,
+        }
+
+    def place_market_order(self, api_key: str, api_secret: str, symbol: str, side: str, quantity: float) -> dict:
+        if self.market_type != "spot":
+            raise NotImplementedError("Futures live/demo order TODO")
+        from binance.client import Client
+
+        client = Client(api_key, api_secret, testnet=self.testnet)
+        result = client.create_order(symbol=symbol, side=side.upper(), type="MARKET", quantity=quantity)
+        return {
+            "status": "filled",
+            "side": side.upper(),
+            "qty": float(result.get("executedQty", quantity)),
+            "exchange_order_id": result.get("orderId"),
+        }

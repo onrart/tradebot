@@ -93,15 +93,33 @@ class BotService:
             self.portfolio.session_realized_pnl += float(result["realized_pnl"])
         return self._snapshot(order_result=result, error=None)
 
+    def _sync_external_balances(self) -> tuple[float, float] | None:
+        if self.cfg.bot_mode == "paper":
+            return None
+        if not self.cfg.binance_api_key or not self.cfg.binance_api_secret:
+            return None
+        try:
+            bal = self.exchange.get_account_balances(self.cfg.binance_api_key, self.cfg.binance_api_secret)
+            return bal["wallet_balance"], bal["available_balance"]
+        except Exception:
+            return None
+
     def _snapshot(self, order_result: dict | None = None, error: str | None = None) -> dict:
         try:
             price = self.exchange.get_latest_price(self.cfg.default_symbol)
         except Exception:
             price = self.last_price if self.last_price > 0 else self.wallet.entry_price
+
+        wallet_balance = self.wallet.wallet_balance
+        available_balance = self.wallet.available_balance
+        sync_bal = self._sync_external_balances()
+        if sync_bal is not None:
+            wallet_balance, available_balance = sync_bal
+
         positions = []
         if self.wallet.base_qty > 0:
             positions.append(self.portfolio.build_position(self.cfg.default_symbol, self.wallet.base_qty, self.wallet.entry_price, price))
-        cards = self.portfolio.account_cards(self.wallet.wallet_balance, self.wallet.available_balance, positions)
+        cards = self.portfolio.account_cards(wallet_balance, available_balance, positions)
         return {
             "symbol": self.cfg.default_symbol,
             "mode": self.cfg.bot_mode,

@@ -16,7 +16,7 @@ MarketType = Literal["spot", "futures"]
 class BotConfig:
     python_version: str = "3.11"
     bot_mode: Mode = "paper"
-    market_type: MarketType = "futures"
+    market_type: MarketType = "spot"
     default_symbol: str = "DOGEUSDT"
     decision_interval_seconds: int = 10
     ui_refresh_interval_seconds: int = 2
@@ -36,6 +36,7 @@ class BotConfig:
     max_position_size_pct: float = 20.0
     max_daily_loss_usdt: float = 5.0
     cooldown_seconds: int = 30
+    allow_pyramiding: bool = False
     emergency_stop: bool = False
     paper_starting_balance: float = 1000.0
 
@@ -56,9 +57,9 @@ def load_config(env_path: str | Path = ".env") -> BotConfig:
     if mode not in {"paper", "demo", "live"}:
         mode = "paper"
 
-    market_type = os.getenv("MARKET_TYPE", "futures").lower()
+    market_type = os.getenv("MARKET_TYPE", "spot").lower()
     if market_type not in {"spot", "futures"}:
-        market_type = "futures"
+        market_type = "spot"
 
     provider = os.getenv("DECIDER_PROVIDER", "RuleBased")
     if provider not in {"RuleBased", "OpenAI", "Gemini", "Ollama"}:
@@ -84,6 +85,7 @@ def load_config(env_path: str | Path = ".env") -> BotConfig:
         max_position_size_pct=float(os.getenv("MAX_POSITION_SIZE_PCT", "20")),
         max_daily_loss_usdt=float(os.getenv("MAX_DAILY_LOSS_USDT", "5")),
         cooldown_seconds=int(os.getenv("COOLDOWN_SECONDS", "30")),
+        allow_pyramiding=_getenv_bool("ALLOW_PYRAMIDING", False),
         emergency_stop=_getenv_bool("EMERGENCY_STOP", False),
         paper_starting_balance=float(os.getenv("PAPER_STARTING_BALANCE", "1000")),
         state_file=os.getenv("STATE_FILE", "tradebot_state.json"),
