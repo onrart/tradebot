@@ -15,7 +15,7 @@ Provider = Literal["RuleBased", "OpenAI", "Gemini", "Ollama"]
 @dataclass(slots=True)
 class BotConfig:
     symbol: str = "BTCUSDT"
-    interval_seconds: int = 40
+    interval_seconds: int = 10
     mode: Mode = "paper"
     provider: Provider = "RuleBased"
     model: str = "rule-v1"
@@ -43,7 +43,7 @@ def load_config(env_path: str | Path = ".env") -> BotConfig:
         mode = "paper"
     return BotConfig(
         symbol=os.getenv("BOT_SYMBOL", "BTCUSDT").upper(),
-        interval_seconds=int(os.getenv("BOT_INTERVAL_SECONDS", "40")),
+        interval_seconds=int(os.getenv("BOT_INTERVAL_SECONDS", "10")),
         mode=mode,  # type: ignore[arg-type]
         provider=os.getenv("DECIDER_PROVIDER", "RuleBased"),  # type: ignore[arg-type]
         model=os.getenv("DECIDER_MODEL", "rule-v1"),

@@ -2,6 +2,8 @@
 
 Bu repo, **paper varsayılan** çalışan modüler bir trade bot MVP'sidir.
 
+Varsayılan karar/tick aralığı **10 saniye** olup hem `.env` (`BOT_INTERVAL_SECONDS`) hem de UI üzerinden değiştirilebilir.
+
 ## Özellikler
 - Streamlit UI: provider/model/symbol/mode/interval seçimi, Start/Stop/Run Once.
 - Modlar: `paper`, `demo`, `live` (live guard ile).
@@ -24,6 +26,9 @@ Bu repo, **paper varsayılan** çalışan modüler bir trade bot MVP'sidir.
 - `tradebot/history`: order geçmişi
 - `tradebot/utils`: logger vb.
 - `streamlit_app.py`: UI giriş noktası
+
+## Gereksinimler
+- Python 3.11+
 
 ## Kurulum
 ```bash

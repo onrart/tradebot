@@ -42,8 +42,14 @@ def sidebar_controls() -> BotConfig:
     model = st.sidebar.selectbox("Model", default_models[provider])
     symbol = st.sidebar.text_input("Coin", value=cfg.symbol).upper()
     mode = st.sidebar.selectbox("Mode", ["paper", "demo", "live"], index=["paper", "demo", "live"].index(cfg.mode))
-    interval = st.sidebar.selectbox("Tick interval (sn)", [30, 40, 50, 60], index=1)
-    custom_interval = st.sidebar.number_input("Custom interval", min_value=5, value=interval, step=1)
+    interval_options = [10, 30, 40, 50, 60]
+    default_interval = cfg.interval_seconds if cfg.interval_seconds in interval_options else 10
+    interval = st.sidebar.selectbox(
+        "Tick interval (sn)",
+        interval_options,
+        index=interval_options.index(default_interval),
+    )
+    custom_interval = st.sidebar.number_input("Custom interval", min_value=5, value=int(interval), step=1)
 
     updated = BotConfig(**{**asdict(cfg), "provider": provider, "model": model, "symbol": symbol, "mode": mode, "interval_seconds": int(custom_interval)})
     st.session_state["cfg"] = updated

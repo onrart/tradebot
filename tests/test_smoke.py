@@ -6,9 +6,19 @@ from tradebot.models.context import BotContext, Position
 import pandas as pd
 
 
-def test_config_load_defaults():
+def test_config_load_defaults(monkeypatch):
+    monkeypatch.delenv("BOT_INTERVAL_SECONDS", raising=False)
     cfg = load_config(".env.missing")
     assert cfg.mode in {"paper", "demo", "live"}
+    assert cfg.interval_seconds == 10
+
+
+def test_config_interval_env_override(tmp_path, monkeypatch):
+    monkeypatch.delenv("BOT_INTERVAL_SECONDS", raising=False)
+    env_file = tmp_path / ".env"
+    env_file.write_text("BOT_INTERVAL_SECONDS=25\n")
+    cfg = load_config(env_file)
+    assert cfg.interval_seconds == 25
 
 
 def test_decider_output_standard():
