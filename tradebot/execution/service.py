@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import time
 
 from tradebot.config.settings import BotConfig
 from tradebot.exchange.binance_client import BinanceClient
@@ -14,7 +15,7 @@ class ExecutionService:
         self.history = history
         self.wallet = wallet
         self.exchange_client = exchange_client
-        self.last_action: dict[str, str] = {}
+        self.last_order_ts: dict[tuple[str, str], float] = {}
 
     @staticmethod
     def _round_step(qty: float, step: float) -> float:
@@ -27,15 +28,19 @@ class ExecutionService:
             return {"status": "hold", "details": "No action"}
         if emergency_stop and action in {"buy", "sell"}:
             return {"status": "blocked", "details": "Emergency stop active"}
-        if self.last_action.get(symbol) == action and action in {"buy", "sell"}:
-            return {"status": "blocked", "details": "duplicate order guard"}
+        if action in {"buy", "sell"}:
+            key = (symbol, action)
+            now = time.time()
+            prev_ts = self.last_order_ts.get(key, 0.0)
+            if now - prev_ts < 2.0:
+                return {"status": "blocked", "details": "duplicate order guard (2s)"}
         if self.cfg.bot_mode == "live" and not self.cfg.live_trading_enabled:
             return {"status": "blocked", "details": "Live guard"}
 
         rules = self.exchange_client.get_symbol_rules(symbol)
         result = self._execute_paper(symbol, action, price, size_pct, rules)
-        if result["status"] in {"filled", "simulated"}:
-            self.last_action[symbol] = action
+        if result["status"] in {"filled", "simulated"} and action in {"buy", "sell"}:
+            self.last_order_ts[(symbol, action)] = time.time()
         return result
 
     def _execute_paper(self, symbol: str, action: str, price: float, size_pct: float, rules: dict) -> dict:

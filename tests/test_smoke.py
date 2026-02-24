@@ -67,3 +67,27 @@ def test_portfolio_normalization():
     cards = svc.account_cards(wallet_balance=1000, available_balance=900, positions=[pos])
     assert pos.unrealized_pnl > 0
     assert cards["equity"] >= cards["wallet_balance"]
+
+
+def test_duplicate_guard_time_window(tmp_path: Path):
+    from tradebot.config.settings import BotConfig
+    from tradebot.execution.service import ExecutionService
+    from tradebot.exchange.binance_client import BinanceClient
+    from tradebot.history.store import InMemoryHistory
+
+    cfg = BotConfig()
+    wallet = PaperWallet(wallet_balance=1000, available_balance=1000)
+    history = InMemoryHistory(state_file=str(tmp_path / 'state.json'))
+
+    class DummyExchange(BinanceClient):
+        def __init__(self):
+            pass
+        def get_symbol_rules(self, symbol: str) -> dict:
+            return {"step_size": 0.001, "min_qty": 0.001, "min_notional": 1, "tick_size": 0.0001}
+
+    svc = ExecutionService(cfg, history, wallet, DummyExchange())
+    d = {"action": "buy", "position_size_pct": 10.0}
+    r1 = svc.execute("DOGEUSDT", 0.1, d)
+    r2 = svc.execute("DOGEUSDT", 0.1, d)
+    assert r1["status"] in {"filled", "simulated"}
+    assert r2["status"] == "blocked"
