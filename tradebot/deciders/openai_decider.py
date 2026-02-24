@@ -12,7 +12,7 @@ class OpenAIDecider(BaseDecider):
 
     def decide(self, context: BotContext) -> dict:
         if not self.api_key:
-            return DEFAULT_DECISION.copy()
+            return {**DEFAULT_DECISION, "fallback_reason": "OPENAI_API_KEY missing"}
         try:
             from openai import OpenAI
 
@@ -22,7 +22,6 @@ class OpenAIDecider(BaseDecider):
                 messages=[{"role": "user", "content": build_prompt(context)}],
                 temperature=0,
             )
-            text = response.choices[0].message.content or ""
-            return parse_decision_json(text)
-        except Exception:
-            return DEFAULT_DECISION.copy()
+            return parse_decision_json(response.choices[0].message.content or "")
+        except Exception as exc:
+            return {**DEFAULT_DECISION, "fallback_reason": f"OpenAI error: {exc}"}

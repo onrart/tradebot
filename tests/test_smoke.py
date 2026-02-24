@@ -1,55 +1,69 @@
+from pathlib import Path
+
+import pandas as pd
+
 from tradebot.config.settings import load_config
 from tradebot.deciders.rule_based import RuleBasedDecider
 from tradebot.execution.paper import PaperWallet
 from tradebot.indicators.ta import compute_indicator_snapshot
-from tradebot.models.context import BotContext, Position
-import pandas as pd
+from tradebot.models.context import BotContext
+from tradebot.portfolio.service import PortfolioService
 
 
 def test_config_load_defaults(monkeypatch):
-    monkeypatch.delenv("BOT_INTERVAL_SECONDS", raising=False)
+    monkeypatch.delenv("DECISION_INTERVAL_SECONDS", raising=False)
     cfg = load_config(".env.missing")
-    assert cfg.mode in {"paper", "demo", "live"}
-    assert cfg.interval_seconds == 10
+    assert cfg.bot_mode in {"paper", "demo", "live"}
+    assert cfg.decision_interval_seconds == 10
 
 
-def test_config_interval_env_override(tmp_path, monkeypatch):
-    monkeypatch.delenv("BOT_INTERVAL_SECONDS", raising=False)
+def test_config_interval_override(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("DECISION_INTERVAL_SECONDS", raising=False)
     env_file = tmp_path / ".env"
-    env_file.write_text("BOT_INTERVAL_SECONDS=25\n")
+    env_file.write_text("DECISION_INTERVAL_SECONDS=12\n")
     cfg = load_config(env_file)
-    assert cfg.interval_seconds == 25
+    assert cfg.decision_interval_seconds == 12
 
 
-def test_decider_output_standard():
+def test_decider_schema_output():
     decider = RuleBasedDecider()
     ctx = BotContext(
-        symbol="BTCUSDT",
-        latest_price=100,
-        indicators={"ema_9": 102, "ema_21": 100, "rsi_14": 60, "atr_14": 1.2},
-        balances={"USDT": 1000},
-        position=Position(symbol="BTCUSDT", qty=0),
+        symbol="DOGEUSDT",
+        market_type="futures",
+        latest_price=0.1,
+        indicators={"ema_9": 0.11, "ema_21": 0.1, "rsi_14": 50, "atr_14": 0.001},
+        balances={"wallet": 1000, "available": 1000},
+        positions=[],
+        recent_orders=[],
     )
-    d = decider.decide(ctx)
-    assert set(d.keys()) == {"action", "confidence", "reason", "position_size_pct", "stop_loss", "take_profit"}
+    decision = decider.decide(ctx)
+    assert set(decision.keys()) == {"action", "confidence", "reason", "position_size_pct", "stop_loss", "take_profit", "fallback_reason"}
 
 
 def test_indicator_pipeline():
     df = pd.DataFrame({
-        "open": [1 + i * 0.1 for i in range(60)],
-        "high": [1.1 + i * 0.1 for i in range(60)],
-        "low": [0.9 + i * 0.1 for i in range(60)],
-        "close": [1 + i * 0.1 for i in range(60)],
-        "volume": [100] * 60,
+        "open": [1 + i * 0.1 for i in range(80)],
+        "high": [1.1 + i * 0.1 for i in range(80)],
+        "low": [0.9 + i * 0.1 for i in range(80)],
+        "close": [1 + i * 0.1 for i in range(80)],
+        "volume": [100] * 80,
     })
     out = compute_indicator_snapshot(df)
-    assert "ema_9" in out and "rsi_14" in out and "atr_14" in out
+    assert {"ema_9", "ema_21", "rsi_14", "atr_14"}.issubset(out)
 
 
-def test_paper_execution_flow():
-    wallet = PaperWallet(quote_balance=1000)
-    bought = wallet.buy(price=100, quote_amount=100)
-    assert bought > 0
-    sold = wallet.sell(price=110, qty=bought)
-    assert sold == bought
-    assert wallet.quote_balance > 1000
+def test_paper_execution_core():
+    wallet = PaperWallet(wallet_balance=1000, available_balance=1000)
+    qty = wallet.buy(price=100, quote_amount=100)
+    assert qty > 0
+    sold, realized = wallet.sell(price=120, qty=qty)
+    assert sold == qty
+    assert realized > 0
+
+
+def test_portfolio_normalization():
+    svc = PortfolioService()
+    pos = svc.build_position("DOGEUSDT", qty=100, entry_price=0.1, mark_price=0.11)
+    cards = svc.account_cards(wallet_balance=1000, available_balance=900, positions=[pos])
+    assert pos.unrealized_pnl > 0
+    assert cards["equity"] >= cards["wallet_balance"]

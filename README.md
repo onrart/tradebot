@@ -1,53 +1,49 @@
-# TradeBot MVP (Binance + Streamlit + LLM Deciders)
+# TradeBot MVP (Python 3.11+, Binance + Streamlit + LLM)
 
-Bu repo, **paper varsayılan** çalışan modüler bir trade bot MVP'sidir.
+Modüler, güvenli ve hata toleranslı bir trade bot MVP'si.
 
-Varsayılan karar/tick aralığı **10 saniye** olup hem `.env` (`BOT_INTERVAL_SECONDS`) hem de UI üzerinden değiştirilebilir.
+## Temel Özellikler
+- Varsayılan mod: `paper`.
+- `demo/testnet` destekli, `live` sadece `LIVE_TRADING_ENABLED=true` ise aktif.
+- Decision interval default **10s** (`DECISION_INTERVAL_SECONDS`) ve UI override.
+- UI refresh interval decision'dan bağımsız (`UI_REFRESH_INTERVAL_SECONDS`, default 2s).
+- LLM decider adapterları: RuleBased / OpenAI / Gemini / Ollama.
+- Canlı izleme paneli: bakiye kartları, açık pozisyonlar, unrealized/realized PnL, son karar, emir geçmişi, log.
 
-## Özellikler
-- Streamlit UI: provider/model/symbol/mode/interval seçimi, Start/Stop/Run Once.
-- Modlar: `paper`, `demo`, `live` (live guard ile).
-- Decider arayüzü: RuleBased, OpenAI, Gemini, Ollama.
-- Güvenli fallback: LLM hata verirse karar `hold` veya RuleBased'e geri dönebilir.
-- Göstergeler: EMA, RSI, ATR.
-- Risk: max position, position size limiti, cooldown.
-- Execution: paper simülasyon + demo/live placeholder adapter.
-- JSON structured logging.
+## Mimari
+- `tradebot/app`: orchestrator/runtime
+- `tradebot/config`: `.env` config yükleme
+- `tradebot/data`: market data fetch
+- `tradebot/indicators`: EMA/RSI/ATR
+- `tradebot/deciders`: karar katmanı + fallback
+- `tradebot/exchange`: Binance spot/futures abstraction
+- `tradebot/execution`: validation + order simulation
+- `tradebot/portfolio`: position & PnL normalize
+- `tradebot/risk`: risk guard'lar
+- `tradebot/history`: local order state persistence
+- `tradebot/loggingx`: JSON structured log + UI log feed
 
-## Proje yapısı
-- `tradebot/app`: bot orkestrasyonu
-- `tradebot/config`: config/env yükleme
-- `tradebot/data`: market data erişimi
-- `tradebot/indicators`: teknik indikatörler
-- `tradebot/deciders`: karar katmanı
-- `tradebot/exchange`: borsa client wrapper
-- `tradebot/execution`: emir yürütme
-- `tradebot/risk`: risk kontrolleri
-- `tradebot/history`: order geçmişi
-- `tradebot/utils`: logger vb.
-- `streamlit_app.py`: UI giriş noktası
-
-## Gereksinimler
-- Python 3.11+
-
-## Kurulum
+## Çalıştırma
 ```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# .env dosyasını düzenleyin
 streamlit run streamlit_app.py
 ```
 
-## Canlı işlem uyarısı
-**Live trading ciddi finansal risk içerir.** `LIVE_TRADING_ENABLED=true` olmadan live emir çalışmaz.
+## Güvenlik
+- Secret değerler loglanmaz (maskelenir).
+- Live guard açık değilse live emirleri bloklanır.
+- Emergency Stop yeni order açmayı durdurur.
 
 ## Test
 ```bash
 pytest -q
 ```
 
-## Sonraki adımlar
-- Demo/live için signed order endpointlerinin tamamlanması
-- Websocket ile düşük gecikmeli veri akışı
-- Backtest modülü
-- Gelişmiş risk (drawdown, volatility regime, kill-switch)
+## Bilinen Eksikler / TODO
+- Binance signed order endpointleri demo/live için placeholder.
+- Websocket yerine şu an REST refresh/polling yaklaşımı.
+- Advanced risk (drawdown/leverage guard) genişletilebilir.
+- Backtest/performance analytics modülü henüz yok.

@@ -12,13 +12,12 @@ class GeminiDecider(BaseDecider):
 
     def decide(self, context: BotContext) -> dict:
         if not self.api_key:
-            return DEFAULT_DECISION.copy()
+            return {**DEFAULT_DECISION, "fallback_reason": "GEMINI_API_KEY missing"}
         try:
             import google.generativeai as genai
 
             genai.configure(api_key=self.api_key)
-            model = genai.GenerativeModel(self.model)
-            response = model.generate_content(build_prompt(context))
+            response = genai.GenerativeModel(self.model).generate_content(build_prompt(context))
             return parse_decision_json(response.text or "")
-        except Exception:
-            return DEFAULT_DECISION.copy()
+        except Exception as exc:
+            return {**DEFAULT_DECISION, "fallback_reason": f"Gemini error: {exc}"}

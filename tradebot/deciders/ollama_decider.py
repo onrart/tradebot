@@ -17,10 +17,9 @@ class OllamaDecider(BaseDecider):
             resp = requests.post(
                 f"{self.base_url}/api/generate",
                 json={"model": self.model, "prompt": build_prompt(context), "stream": False},
-                timeout=30,
+                timeout=20,
             )
             resp.raise_for_status()
-            content = resp.json().get("response", "")
-            return parse_decision_json(content)
-        except Exception:
-            return DEFAULT_DECISION.copy()
+            return parse_decision_json(resp.json().get("response", ""))
+        except Exception as exc:
+            return {**DEFAULT_DECISION, "fallback_reason": f"Ollama error: {exc}"}

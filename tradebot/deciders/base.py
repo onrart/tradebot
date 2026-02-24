@@ -20,14 +20,12 @@ def normalize_decision(data: dict[str, Any]) -> dict[str, Any]:
     action = str(data.get("action", "hold")).lower()
     if action not in {"buy", "sell", "hold", "close"}:
         action = "hold"
-    confidence = float(data.get("confidence", 0.0))
-    confidence = max(0.0, min(1.0, confidence))
-    size = float(data.get("position_size_pct", 0.0))
     return {
         "action": action,
-        "confidence": confidence,
-        "reason": str(data.get("reason", ""))[:500],
-        "position_size_pct": max(0.0, min(1.0, size)),
-        "stop_loss": data.get("stop_loss"),
-        "take_profit": data.get("take_profit"),
+        "confidence": max(0.0, min(1.0, float(data.get("confidence", 0.0)))),
+        "reason": str(data.get("reason", "")).strip()[:500],
+        "position_size_pct": max(0.0, min(100.0, float(data.get("position_size_pct", 0.0)))),
+        "stop_loss": float(data["stop_loss"]) if data.get("stop_loss") is not None else None,
+        "take_profit": float(data["take_profit"]) if data.get("take_profit") is not None else None,
+        "fallback_reason": str(data.get("fallback_reason")) if data.get("fallback_reason") else None,
     }
